@@ -10,8 +10,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 
-#### FUNCTIONS 1.2
-import requests
+#### FUNCTIONS 1.0
 
 def validateFilename(filename):
     filenameregex = '^[a-zA-Z0-9]+_[a-zA-Z0-9]+_[a-zA-Z0-9]+_[0-9][0-9][0-9][0-9]_[0-9QY][0-9]$'
@@ -39,19 +38,19 @@ def validateFilename(filename):
 
 def validateURL(url):
     try:
-        r = requests.get(url)
+        r = urllib2.urlopen(url)
         count = 1
-        while r.status_code == 500 and count < 4:
+        while r.getcode() == 500 and count < 4:
             print ("Attempt {0} - Status code: {1}. Retrying.".format(count, r.status_code))
             count += 1
-            r = requests.get(url)
+            r = urllib2.urlopen(url)
         sourceFilename = r.headers.get('Content-Disposition')
 
         if sourceFilename:
             ext = os.path.splitext(sourceFilename)[1].replace('"', '').replace(';', '').replace(' ', '')
         else:
             ext = os.path.splitext(url)[1]
-        validURL = r.status_code == 200
+        validURL = r.getcode() == 200
         validFiletype = ext.lower() in ['.csv', '.xls', '.xlsx', '.pdf']
         return validURL, validFiletype
     except:
@@ -86,8 +85,8 @@ def convert_mth_strings ( mth_string ):
 
 #### VARIABLES 1.0
 
-entity_id = "CCG03C_NLWCCG_gov"
-url = "https://www.leedswestccg.nhs.uk/about/publications/expenditure-over-25k/"
+entity_id = "CCG06Y_NSNCCG_gov"
+url = "http://www.southnorfolkccg.nhs.uk/public-information/expenditure-over-%C2%A325000"
 errors = 0
 data = []
 
@@ -100,15 +99,19 @@ soup = BeautifulSoup(html, "lxml")
 
 #### SCRAPE DATA
 
-title_divs = soup.find_all('h1', 'entry__title')
+title_divs = soup.find('a', attrs={'href':'/public-information/expenditure-over-%C2%A325000'}).find_next('ul').find_all('a')
 for title_div in title_divs:
-    block = title_div.find('a')
-    url = block['href']
-    title = block.text.strip()
-    csvMth = title.strip().split()[0][:3]
-    csvYr = title.strip().split()[-1]
-    csvMth = convert_mth_strings(csvMth.upper())
-    data.append([csvYr, csvMth, url])
+    year_link = 'http://www.southnorfolkccg.nhs.uk'+title_div['href']
+    year_html = urllib2.urlopen(year_link)
+    year_soup = BeautifulSoup(year_html, "lxml")
+    table = year_soup.find_all('span', 'file')
+    for link in table:
+        url = link.find('a')['href']
+        title = link.find('a').text
+        csvMth = title[:3]
+        csvYr = title.split()[1][:4]
+        csvMth = convert_mth_strings(csvMth.upper())
+        data.append([csvYr, csvMth, url])
 
 #### STORE DATA 1.0
 
